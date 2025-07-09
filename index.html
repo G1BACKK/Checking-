@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UPI Payment ₹500</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    .slide-up-enter-active, .slide-up-leave-active {
+      transition: all 0.3s ease;
+    }
+    .slide-up-enter-from, .slide-up-leave-to {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+  <div id="app" class="w-full max-w-md">
+    
+    <!-- Main Payment Card -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 space-y-6">
+      <!-- Header -->
+      <div class="text-center">
+        <h1 class="text-2xl font-bold text-gray-800">G1PAY UPI</h1>
+        <p class="text-gray-500 text-sm mt-1">Payment to Merchant</p>
+        <p class="text-3xl font-bold text-blue-600 mt-2">₹500</p>
+      </div>
+
+      <!-- QR Code -->
+      <div class="flex flex-col items-center">
+        <img :src="qrCodeUrl" alt="UPI QR Code" class="w-48 h-48 border rounded-lg">
+        <button @click="downloadQR" class="mt-3 text-blue-600 text-sm underline">Download QR Code</button>
+      </div>
+
+      <!-- UPI Apps -->
+      <div class="space-y-3">
+        <button 
+          v-for="app in upiApps" 
+          :key="app.name"
+          @click="openUpiApp(app.scheme)"
+          class="w-full flex justify-between items-center p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          <div class="flex items-center gap-3">
+            <span class="font-medium">{{ app.name }}</span>
+          </div>
+          <span>→</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Fixed Submit Button -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white p-4 border-t shadow-md">
+      <button 
+        @click="showUtrModal = true"
+        class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium"
+      >
+        Submit UTR
+      </button>
+    </div>
+
+    <!-- UTR Modal -->
+    <transition name="slide-up">
+      <div v-if="showUtrModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center p-4 z-50">
+        <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="text-lg font-bold">Submit UTR Number</h3>
+            <button @click="showUtrModal = false" class="text-gray-500">✕</button>
+          </div>
+          
+          <p class="text-gray-600 text-sm">Enter 12-digit UTR from your bank transaction</p>
+          
+          <input 
+            v-model="utrNumber"
+            @input="validateUtr"
+            maxlength="12"
+            placeholder="123456789012"
+            class="w-full p-3 border rounded-lg text-center font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+          
+          <button 
+            @click="submitPayment"
+            :disabled="!isValidUtr"
+            class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            Verify Payment
+          </button>
+        </div>
+      </div>
+    </transition>
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        // Payment details
+        const paymentDetails = {
+          payeeVPA: "merchant123@upi",
+          payeeName: "G1PAY Merchant",
+          amount: "500",
+          transactionNote: "Payment for services",
+          transactionRef: "TXN" + Math.floor(Math.random() * 1000000000)
+        };
+
+        // UPI Apps
+        const upiApps = [
+          { name: "Paytm", scheme: "paytmmp://pay" },
+          { name: "PhonePe", scheme: "phonepe://pay" },
+          { name: "Google Pay", scheme: "tez://upi/pay" }
+        ];
+
+        // Reactive state
+        const qrCodeUrl = ref("");
+        const showUtrModal = ref(false);
+        const utrNumber = ref("");
+
+        // Computed properties
+        const isValidUtr = computed(() => {
+          return /^\d{12}$/.test(utrNumber.value);
+        });
+
+        // Methods
+        const generateQRCode = () => {
+          const upiString = `upi://pay?pa=${paymentDetails.payeeVPA}&pn=${encodeURIComponent(paymentDetails.payeeName)}&am=${paymentDetails.amount}&tn=${encodeURIComponent(paymentDetails.transactionNote)}&tr=${paymentDetails.transactionRef}`;
+          qrCodeUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiString)}`;
+        };
+
+        const downloadQR = () => {
+          const link = document.createElement("a");
+          link.href = qrCodeUrl.value;
+          link.download = "G1PAY-UPI-Payment.png";
+          link.click();
+        };
+
+        const openUpiApp = (scheme) => {
+          const upiString = `${scheme}?pa=${paymentDetails.payeeVPA}&pn=${encodeURIComponent(paymentDetails.payeeName)}&am=${paymentDetails.amount}&tn=${encodeURIComponent(paymentDetails.transactionNote)}`;
+          window.location.href = upiString;
+        };
+
+        const validateUtr = (e) => {
+          utrNumber.value = e.target.value.replace(/\D/g, "").slice(0, 12);
+        };
+
+        const submitPayment = () => {
+          if (isValidUtr.value) {
+            alert(`Payment verified!\nUTR: ${utrNumber.value}`);
+            showUtrModal.value = false;
+            utrNumber.value = "";
+          }
+        };
+
+        // Initialize
+        onMounted(() => {
+          generateQRCode();
+        });
+
+        return {
+          qrCodeUrl,
+          upiApps,
+          showUtrModal,
+          utrNumber,
+          isValidUtr,
+          downloadQR,
+          openUpiApp,
+          validateUtr,
+          submitPayment
+        };
+      }
+    }).mount("#app");
+  </script>
+</body>
+</html>
